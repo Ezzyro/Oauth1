@@ -1,0 +1,7 @@
+
+
+
+curl -X GET https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/test-webhook-secretcurl -X POST "your-ngrok-url/webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: sha256=generated_signature" \
+  -d '{"test":"data"}'
