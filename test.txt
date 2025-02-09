@@ -1,7 +1,35 @@
+curl -X GET "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/webhook?hub.mode=subscribe&hub.challenge=1234567&hub.verify_token=2sZfWz8SL68DaPwsgkiKoSS2loZ_7NcSGddAEDGAmbaWSuvWh"
+VERIFY_TOKEN=2sZfWz8SL68DaPwsgkiKoSS2loZ_7NcSGddAEDGAmbaWSuvWh
+WEBHOOK_SECRET=c84a108b21a4fd3c4a39a797784d0130
+PAGE_ID=
+BASE_URL= https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app
 
-
-
-curl -X GET https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/test-webhook-secretcurl -X POST "your-ngrok-url/webhook" \
+curl -X POST "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/webhook" \
   -H "Content-Type: application/json" \
-  -H "X-Hub-Signature-256: sha256=generated_signature" \
-  -d '{"test":"data"}'
+  -H "X-Hub-Signature-256: sha256=$(echo -n '{"object":"instagram","entry":[{"messaging":[{"sender":{"id":"123"},"recipient":{"id":"456"},"message":{"text":"Hello"}}]}]}' | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -hex | cut -d' ' -f2)" \
+  -d '{"object":"instagram","entry":[{"messaging":[{"sender":{"id":"123"},"recipient":{"id":"456"},"message":{"text":"Hello"}}]}]}'
+
+
+  # Replace YOUR_WEBHOOK_URL with your ngrok URL
+curl -X POST "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app
+/webhook-test"
+
+
+curl -X POST "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/webhook" \
+-H "Content-Type: application/json" \
+-H "X-Hub-Signature-256: sha256=66b34d33efc420ebc5c1701cf41407f6aaef9e47c956041509f8620baee54abe" \
+-d '{"test":"data"}'
+
+
+curl -X POST "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/setup-page-subscription" \
+  -H "Content-Type: application/json" \
+  -d '{"pageId": "your-page-id"}'
+
+  curl -X GET "https://graph.instagram.com/v18.0/{media-id}/comments?access_token={access-token}"
+
+  curl -X POST "https://a452-2401-4900-883a-dfc0-e4fe-dcce-d95e-c114.ngrok-free.app/setup-page-subscription" \
+-H "Content-Type: application/json" \
+-d '{
+    "pageId": "603138982427396",
+    "accessToken": "5f3db94998f385de74f88bc84d68e7eb"
+}'

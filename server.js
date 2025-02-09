@@ -34,8 +34,9 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const bodyParser = require('body-parser');
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
@@ -48,17 +49,16 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-const webhookRouter = require('./routes/webhooks');
-app.use('/', webhookRouter);
+
 const instagramRoutes = require('./routes/instagram');
 app.use('/instagram', instagramRoutes);
+const webhookRouter = require('./routes/webhooks');
+app.use('/', webhookRouter);
 
 // Basic routes
 app.get('/', (req, res) => {
     res.redirect('/login');
 });
-
-app.use('/webhook', express.raw({ type: 'application/json' }));
 
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'login.html'));
