@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
+const commentStore = require('../models/commentStore');
 
 // Middleware to capture raw body
 router.use(express.json({
@@ -9,6 +10,30 @@ router.use(express.json({
         req.rawBody = buf;
     }
 }));
+const repliedComments = new Set();
+let isProcessing = false;
+
+
+async function replyToComment(commentId, message, accessToken) {
+    try {
+        const response = await axios.post(
+            `https://graph.facebook.com/v22.0/${commentId}/replies`,
+            null,
+            {
+                params: {
+                    message: message,
+                    access_token: accessToken
+                }
+            }
+        );
+        console.log('Reply posted successfully:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error posting reply:', error.response?.data || error);
+        throw error;
+    }
+}
+
 
 // GET endpoint for webhook verification
 router.get('/webhook', (req, res) => {
@@ -55,7 +80,7 @@ async function getMediaDetails(mediaId, accessToken) {
 router.post('/webhook', async (req, res) => {
     try {
         console.log('Raw webhook event received:', req.body);
-        
+
         if (req.body.object === 'instagram') {
             const entry = req.body.entry[0];
             const changes = entry.changes;
@@ -63,11 +88,62 @@ router.post('/webhook', async (req, res) => {
             for (const change of changes) {
                 console.log('Processing change:', change);
 
+                if (change.field === 'comments') {
+                    try {
+                        const commentId = change.value.id;
+                        const commentText = change.value.text;
+                        const userID=change.value.from.username;
+                        
+                        // Skip if this is our own reply
+                        if (userID === "rohitrocks7665") {
+                            console.log('Skipping our own reply');
+                            continue;
+                        }
+
+                        // Check if we've already handled this comment
+                        if (repliedComments.has(commentId)) {
+                            console.log('Already replied to this comment:', commentId);
+                            continue;
+                        }
+
+                        console.log('New comment received:', {
+                            id: commentId,
+                            text: commentText
+                        });
+
+                        try {
+                            const replyResponse = await replyToComment(
+                                commentId,
+                                "Hey please check your dm",
+                                process.env.INSTAGRAM_ACCESS_TOKEN
+                            );
+                            console.log('Reply sent successfully:', replyResponse);
+                            
+                            // Add to our set of replied comments
+                            repliedComments.add(commentId);
+                            
+                            // Optional: Clean up old entries after some time
+                            setTimeout(() => {
+                                repliedComments.delete(commentId);
+                            }, 24 * 60 * 60 * 1000); // Remove after 24 hours
+                            
+                        } catch (replyError) {
+                            if (replyError.response?.data?.error?.code === 100) {
+                                console.log('Skipping reply to a reply');
+                            } else {
+                                console.error('Error sending reply:', replyError.response?.data);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error handling comment:', error);
+                    }
+                }
+            
                 if (change.field === 'media') {
                     try {
                         const mediaId = change.value.id;
                         const mediaDetails = await getMediaDetails(mediaId, process.env.INSTAGRAM_ACCESS_TOKEN);
-                        
+
                         console.log('Complete media details:', {
                             id: mediaDetails.id,
                             caption: mediaDetails.caption,
