@@ -14,6 +14,7 @@ const repliedComments = new Set();
 let isProcessing = false;
 
 
+
 async function replyToComment(commentId, message, accessToken) {
     try {
         const response = await axios.post(
@@ -34,6 +35,32 @@ async function replyToComment(commentId, message, accessToken) {
     }
 }
 
+async function sendDirectMessage(userId, message, accessToken) {
+    try {
+        const response = await axios.post(
+            'https://graph.instagram.com/v21.0/me/messages',
+            {
+                recipient: {
+                    id: userId
+                },
+                message: {
+                    text: message
+                }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        console.log('Direct message sent successfully:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error sending direct message:', error.response?.data || error);
+        throw error;
+    }
+}
 
 // GET endpoint for webhook verification
 router.get('/webhook', (req, res) => {
@@ -83,99 +110,137 @@ router.post('/webhook', async (req, res) => {
 
         if (req.body.object === 'instagram') {
             const entry = req.body.entry[0];
-            const changes = entry.changes;
 
-            for (const change of changes) {
-                console.log('Processing change:', change);
+            // Handle messaging events
+            if (entry.messaging) {
+                console.log('Received messaging event:', entry.messaging);
+                const messagingEvent = entry.messaging[0];
+                const senderId = messagingEvent.sender.id;
+                const recipientId = messagingEvent.recipient.id;
 
-                if (change.field === 'comments') {
+                // Handle incoming messages
+                if (messagingEvent.message && !messagingEvent.message.quick_reply) {
                     try {
-                        const commentId = change.value.id;
-                        const commentText = change.value.text;
-                        const userID=change.value.from.username;
-                        
-                        // Skip if this is our own reply
-                        if (userID === "rohitrocks7665") {
-                            console.log('Skipping our own reply');
-                            continue;
-                        }
-
-                        // Check if we've already handled this comment
-                        if (repliedComments.has(commentId)) {
-                            console.log('Already replied to this comment:', commentId);
-                            continue;
-                        }
-
-                        console.log('New comment received:', {
-                            id: commentId,
-                            text: commentText
-                        });
-
-                        try {
-                            const replyResponse = await replyToComment(
-                                commentId,
-                                "Hey please check your dm",
-                                process.env.INSTAGRAM_ACCESS_TOKEN
-                            );
-                            console.log('Reply sent successfully:', replyResponse);
-                            
-                            // Add to our set of replied comments
-                            repliedComments.add(commentId);
-                            
-                            // Optional: Clean up old entries after some time
-                            setTimeout(() => {
-                                repliedComments.delete(commentId);
-                            }, 24 * 60 * 60 * 1000); // Remove after 24 hours
-                            
-                        } catch (replyError) {
-                            if (replyError.response?.data?.error?.code === 100) {
-                                console.log('Skipping reply to a reply');
-                            } else {
-                                console.error('Error sending reply:', replyError.response?.data);
-                            }
-                        }
+                        await sendQuickReply(
+                            recipientId,
+                            senderId,
+                            process.env.INSTAGRAM_ACCESS_TOKEN
+                        );
                     } catch (error) {
-                        console.error('Error handling comment:', error);
+                        console.error('Error sending quick reply:', error);
                     }
                 }
-            
-                if (change.field === 'media') {
-                    try {
-                        const mediaId = change.value.id;
-                        const mediaDetails = await getMediaDetails(mediaId, process.env.INSTAGRAM_ACCESS_TOKEN);
 
-                        console.log('Complete media details:', {
-                            id: mediaDetails.id,
-                            caption: mediaDetails.caption,
-                            mediaType: mediaDetails.media_type,
-                            mediaUrl: mediaDetails.media_url,
-                            thumbnailUrl: mediaDetails.thumbnail_url,
-                            permalink: mediaDetails.permalink,
-                            timestamp: mediaDetails.timestamp,
-                            username: mediaDetails.username,
-                            commentsCount: mediaDetails.comments_count,
-                            likeCount: mediaDetails.like_count
-                        });
+                // Handle quick reply responses
+                if (messagingEvent.message && messagingEvent.message.quick_reply) {
+                    const payload = messagingEvent.message.quick_reply.payload;
+                    console.log('Quick reply payload received:', payload);
+                    // Handle different payloads here
+                }
+            }
 
-                        // Handle different media types
-                        switch (mediaDetails.media_type) {
-                            case 'IMAGE':
-                                console.log('Processing image post');
-                                // Add your image handling logic here
-                                break;
-                            case 'VIDEO':
-                                console.log('Processing video post');
-                                // Add your video handling logic here
-                                break;
-                            case 'CAROUSEL_ALBUM':
-                                console.log('Processing carousel post');
-                                // Add your carousel handling logic here
-                                break;
-                            default:
-                                console.log('Unknown media type:', mediaDetails.media_type);
+            // Handle changes events
+            if (entry.changes && Array.isArray(entry.changes)) {
+                for (const change of entry.changes) {
+                    console.log('Processing change:', change);
+
+                    if (change.field === 'comments') {
+                        try {
+                            const commentId = change.value.id;
+                            const commentText = change.value.text;
+                            const userID = change.value.from.id; // Get the user's Instagram ID
+                            const username = change.value.from.username;
+
+                            // Skip if this is our own reply
+                            if (username === "yourbrainbooster") {
+                                console.log('Skipping our own reply');
+                                continue;
+                            }
+
+                            // Check if we've already handled this comment
+                            if (repliedComments.has(commentId)) {
+                                console.log('Already replied to this comment:', commentId);
+                                continue;
+                            }
+
+                            console.log('New comment received:', {
+                                id: commentId,
+                                text: commentText,
+                                userId: userID
+                            });
+
+                            try {
+                                // Send a direct message to the user
+                                await sendDirectMessage(
+                                    userID,
+                                    "Hey there thanks for the comment",
+                                    process.env.INSTAGRAM_ACCESS_TOKEN
+                                );
+                                console.log('Direct message sent to user:', userID);
+
+                                // Reply to the comment
+                                const replyResponse = await replyToComment(
+                                    commentId,
+                                    "Hey please check your dm",
+                                    process.env.ACCESS_TOKEN
+                                );
+                                console.log('Reply sent successfully:', replyResponse);
+
+                                repliedComments.add(commentId);
+
+                                setTimeout(() => {
+                                    repliedComments.delete(commentId);
+                                }, 24 * 60 * 60 * 1000);
+
+                            } catch (replyError) {
+                                if (replyError.response?.data?.error?.code === 100) {
+                                    console.log('Skipping reply to a reply');
+                                } else {
+                                    console.error('Error handling response:', replyError.response?.data);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error handling comment:', error);
                         }
-                    } catch (error) {
-                        console.error('Error processing media:', error);
+                    }
+                    if (change.field === 'media') {
+                        try {
+                            const mediaId = change.value.id;
+                            const mediaDetails = await getMediaDetails(mediaId, process.env.INSTAGRAM_ACCESS_TOKEN);
+
+                            console.log('Complete media details:', {
+                                id: mediaDetails.id,
+                                caption: mediaDetails.caption,
+                                mediaType: mediaDetails.media_type,
+                                mediaUrl: mediaDetails.media_url,
+                                thumbnailUrl: mediaDetails.thumbnail_url,
+                                permalink: mediaDetails.permalink,
+                                timestamp: mediaDetails.timestamp,
+                                username: mediaDetails.username,
+                                commentsCount: mediaDetails.comments_count,
+                                likeCount: mediaDetails.like_count
+                            });
+
+                            // Handle different media types
+                            switch (mediaDetails.media_type) {
+                                case 'IMAGE':
+                                    console.log('Processing image post');
+                                    // Add your image handling logic here
+                                    break;
+                                case 'VIDEO':
+                                    console.log('Processing video post');
+                                    // Add your video handling logic here
+                                    break;
+                                case 'CAROUSEL_ALBUM':
+                                    console.log('Processing carousel post');
+                                    // Add your carousel handling logic here
+                                    break;
+                                default:
+                                    console.log('Unknown media type:', mediaDetails.media_type);
+                            }
+                        } catch (error) {
+                            console.error('Error processing media:', error);
+                        }
                     }
                 }
             }
@@ -189,7 +254,6 @@ router.post('/webhook', async (req, res) => {
         res.sendStatus(500);
     }
 });
-
 router.post('/setup-page-subscription', async (req, res) => {
     try {
         const { pageId, accessToken } = req.body;
@@ -208,7 +272,7 @@ router.post('/setup-page-subscription', async (req, res) => {
             {
                 params: {
                     access_token: accessToken,
-                    subscribed_fields: 'feed'
+                    subscribed_fields: 'feed,messages,messaging_postbacks'
                 }
             }
         );
